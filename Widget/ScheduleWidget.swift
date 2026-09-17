@@ -542,7 +542,7 @@ private struct LessonBlock: View {
             Text(lesson.subject)
                 .font(.system(size: 10, weight: isActive ? .semibold : .regular))
                 .foregroundStyle(isActive ? activeForeground : AnyShapeStyle(isPast ? .secondary : .primary))
-                .lineLimit(1)
+                .lineLimit(2)
                 .minimumScaleFactor(0.8)
         }
         .padding(.horizontal, 4)
