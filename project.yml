@@ -42,7 +42,7 @@ targets:
         # Replace REPLACE_WITH_YOUR_SPARKLE_PUBLIC_KEY once you've run
         # `generate_keys` locally (see README).
         INFOPLIST_KEY_SUFeedURL: https://raw.githubusercontent.com/Affireyy/SchoolSoftWidget/main/appcast.xml
-        INFOPLIST_KEY_SUPublicEDKey: "fGEdg1zGBlUgvL8q36SjqF28mBzktrWzcGTiz+ZhCdA="
+        INFOPLIST_KEY_SUPublicEDKey: "J1x8Iu8W4VLz4Dt8LBfB5lj230F7kW81zB9UWJz2BiY="
         INFOPLIST_KEY_SUEnableAutomaticChecks: YES
         INFOPLIST_KEY_SUScheduledCheckInterval: 86400
     entitlements:
