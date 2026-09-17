@@ -1,0 +1,188 @@
+name: Release
+
+# Fires whenever a version tag like v1.2.0 is pushed. Build a Release
+# .app, ad-hoc sign it (no paid Apple Developer ID is configured for this
+# project -- see README), package it into a drag-and-drop DMG, publish a
+# GitHub Release with the DMG attached, and append a signed entry to
+# appcast.xml so every existing install picks up the update via Sparkle.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+env:
+  SCHEME: SchoolSoftWidget
+  PROJECT: SchoolSoftWidget.xcodeproj
+  # Pin the Sparkle CLI tools (sign_update) to a known-good release so this
+  # workflow doesn't silently pick up a breaking change. Bump when you
+  # bump the Sparkle SPM version in project.yml.
+  SPARKLE_CLI_VERSION: "2.6.4"
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Derive version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build Release (ad-hoc signed)
+        run: |
+          # No paid Apple Developer ID is set up for this project, so we
+          # sign ad-hoc ("-") instead of relying on the automatic
+          # provisioning that project.yml's DEVELOPMENT_TEAM implies --
+          # CI has no access to that certificate anyway. Ad-hoc signing
+          # still applies entitlements (App Sandbox off for the app, the
+          # App Group, etc.) correctly; it just isn't tied to a Developer
+          # ID, so first launch on another Mac needs a right-click > Open
+          # (see README). Swap these overrides for a real Developer ID +
+          # notarization later if you get a paid membership.
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -derivedDataPath build \
+            MARKETING_VERSION="${{ steps.version.outputs.version }}" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="-" \
+            DEVELOPMENT_TEAM="" \
+            CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGNING_ALLOWED=YES \
+            clean build
+
+      - name: Re-sign app bundle (defensive)
+        run: |
+          APP="build/Build/Products/Release/${SCHEME}.app"
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict "$APP"
+
+      - name: Package DMG
+        id: dmg
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          APP="build/Build/Products/Release/${SCHEME}.app"
+          DMG_NAME="SchoolSoftWidget-${VERSION}.dmg"
+
+          STAGING=dmg-staging
+          rm -rf "$STAGING" && mkdir "$STAGING"
+          cp -R "$APP" "$STAGING/"
+          ln -s /Applications "$STAGING/Applications"
+
+          rm -f "$DMG_NAME"
+          hdiutil create -volname "SchoolSoftWidget" \
+            -srcfolder "$STAGING" \
+            -ov -format UDZO \
+            "$DMG_NAME"
+
+          echo "dmg_name=$DMG_NAME" >> "$GITHUB_OUTPUT"
+          echo "dmg_path=$PWD/$DMG_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Download Sparkle CLI tools
+        run: |
+          curl -L -o sparkle-cli.tar.xz \
+            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_CLI_VERSION}/Sparkle-${SPARKLE_CLI_VERSION}.tar.xz"
+          mkdir -p sparkle-cli
+          tar -xf sparkle-cli.tar.xz -C sparkle-cli
+          chmod +x sparkle-cli/bin/sign_update
+
+      - name: Sign update for Sparkle
+        id: sparkle_sign
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          if [ -z "$SPARKLE_PRIVATE_KEY" ]; then
+            echo "::error::SPARKLE_PRIVATE_KEY repo secret is not set. See README for the one-time 'generate_keys' setup." >&2
+            exit 1
+          fi
+          OUTPUT=$(./sparkle-cli/bin/sign_update "${{ steps.dmg.outputs.dmg_path }}")
+          echo "$OUTPUT"
+          SIG=$(echo "$OUTPUT" | grep -o 'sparkle:edSignature="[^"]*"' | cut -d'"' -f2)
+          LEN=$(echo "$OUTPUT" | grep -o 'length="[^"]*"' | cut -d'"' -f2)
+          if [ -z "$SIG" ] || [ -z "$LEN" ]; then
+            echo "::error::Could not parse sign_update output." >&2
+            exit 1
+          fi
+          echo "signature=$SIG" >> "$GITHUB_OUTPUT"
+          echo "length=$LEN" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            "${{ steps.dmg.outputs.dmg_path }}" \
+            --title "${{ steps.version.outputs.tag }}" \
+            --generate-notes
+
+      - name: Append release to appcast.xml on main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          BUILD="${{ github.run_number }}"
+          SIG="${{ steps.sparkle_sign.outputs.signature }}"
+          LEN="${{ steps.sparkle_sign.outputs.length }}"
+          DMG_NAME="${{ steps.dmg.outputs.dmg_name }}"
+          PUB_DATE=$(date -u "+%a, %d %b %Y %H:%M:%S +0000")
+          DOWNLOAD_URL="https://github.com/Affireyy/SchoolSoftWidget/releases/download/${TAG}/${DMG_NAME}"
+
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+
+          python3 - "$VERSION" "$BUILD" "$SIG" "$LEN" "$DOWNLOAD_URL" "$PUB_DATE" "$TAG" << 'PYEOF'
+          import sys
+
+          version, build, sig, length, url, pub_date, tag = sys.argv[1:8]
+
+          item = f"""    <item>
+              <title>{tag}</title>
+              <pubDate>{pub_date}</pubDate>
+              <sparkle:version>{build}</sparkle:version>
+              <sparkle:shortVersionString>{version}</sparkle:shortVersionString>
+              <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+              <enclosure
+                  url="{url}"
+                  length="{length}"
+                  type="application/octet-stream"
+                  sparkle:edSignature="{sig}" />
+          </item>
+          """
+
+          marker = "<!-- CI-INSERT-POINT: new <item> elements are inserted directly below this line. -->"
+          with open("appcast.xml") as f:
+              content = f.read()
+
+          assert marker in content, "CI-INSERT-POINT marker missing from appcast.xml"
+          content = content.replace(marker, marker + "\n" + item, 1)
+
+          with open("appcast.xml", "w") as f:
+              f.write(content)
+          PYEOF
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add appcast.xml
+          git commit -m "Release ${TAG}: add appcast entry"
+          git push origin HEAD:main

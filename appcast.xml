@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Sparkle update feed for SchoolSoftWidget.
+
+  Served to the app via raw.githubusercontent.com (see SUFeedURL in
+  project.yml), so it updates the moment this file is committed to main --
+  no separate hosting needed.
+
+  Do not hand-edit the <item> entries below. The release workflow
+  (.github/workflows/release.yml) appends a new <item> here automatically
+  every time you push a version tag, using Sparkle's `sign_update` tool and
+  the SPARKLE_PRIVATE_KEY repo secret. This file starts with zero items;
+  the first tagged release adds the first one.
+-->
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>SchoolSoftWidget</title>
+    <link>https://raw.githubusercontent.com/Affireyy/SchoolSoftWidget/main/appcast.xml</link>
+    <description>Updates for SchoolSoftWidget.</description>
+    <language>en</language>
+    <!-- CI-INSERT-POINT: new <item> elements are inserted directly below this line. -->
+  </channel>
+</rss>

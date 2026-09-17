@@ -1,0 +1,79 @@
+name: SchoolSoftWidget
+options:
+  bundleIdPrefix: com.dessimondi
+  deploymentTarget:
+    macOS: "14.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    INFOPLIST_KEY_CFBundleShortVersionString: "1.0.0"
+    INFOPLIST_KEY_CFBundleVersion: "1"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: UDWA7LNKRM
+
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.6.0
+
+targets:
+  SchoolSoftWidget:
+    type: application
+    platform: macOS
+    sources:
+      - path: App
+      - path: Shared
+    dependencies:
+      - target: SchoolSoftWidgetExtension
+        codeSign: true
+      - package: Sparkle
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dessimondi.SchoolSoftWidget
+        CODE_SIGN_ENTITLEMENTS: App/SchoolSoftWidget.entitlements
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+        # Sparkle auto-update feed + the public half of the EdDSA signing
+        # key. The matching private key never lives in this repo -- CI
+        # reads it from the SPARKLE_PRIVATE_KEY secret at release time.
+        # Replace REPLACE_WITH_YOUR_SPARKLE_PUBLIC_KEY once you've run
+        # `generate_keys` locally (see README).
+        INFOPLIST_KEY_SUFeedURL: https://raw.githubusercontent.com/Affireyy/SchoolSoftWidget/main/appcast.xml
+        INFOPLIST_KEY_SUPublicEDKey: REPLACE_WITH_YOUR_SPARKLE_PUBLIC_KEY
+        INFOPLIST_KEY_SUEnableAutomaticChecks: YES
+        INFOPLIST_KEY_SUScheduledCheckInterval: 86400
+    entitlements:
+      path: App/SchoolSoftWidget.entitlements
+      properties:
+        # App Sandbox is intentionally OFF for the main app so Sparkle can
+        # install downloaded updates directly, with no installer XPC
+        # service to maintain. The widget extension below stays sandboxed
+        # -- WidgetKit requires that regardless.
+        com.apple.security.app-sandbox: false
+        com.apple.security.network.client: true
+        com.apple.security.application-groups:
+          - UDWA7LNKRM.com.dessimondi.SchoolSoftWidget
+
+  SchoolSoftWidgetExtension:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: Widget
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dessimondi.SchoolSoftWidget.extension
+        CODE_SIGN_ENTITLEMENTS: Widget/SchoolSoftWidgetExtension.entitlements
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: Widget/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: SchoolSoft Schedule
+    entitlements:
+      path: Widget/SchoolSoftWidgetExtension.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.application-groups:
+          - UDWA7LNKRM.com.dessimondi.SchoolSoftWidget
+

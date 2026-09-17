@@ -1,0 +1,25 @@
+# Xcode
+.derivedData/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+
+# XcodeGen-generated project (regenerated from project.yml via `xcodegen generate`)
+*.xcodeproj/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# macOS
+.DS_Store
+
+# Build products / packaging output used by the release workflow
+build/
+*.dmg
+
+# Local secrets -- never commit a Sparkle private key
+*.pem
+sparkle_private_key*
