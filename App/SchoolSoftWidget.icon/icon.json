@@ -1,0 +1,44 @@
+{
+  "fill" : {
+    "automatic-gradient" : "extended-srgb:0.00000,0.53333,1.00000,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "blend-mode" : "overlay",
+          "fill" : "automatic",
+          "glass" : true,
+          "image-name" : "Rounded Square.svg",
+          "name" : "Rounded Square",
+          "opacity" : 0.75,
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              -200,
+              -200
+            ]
+          }
+        },
+        {
+          "glass" : true,
+          "image-name" : "SchoolSoft_Elev_1024x1024.jpg",
+          "name" : "SchoolSoft_Elev_1024x1024"
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.3
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : [
+      "macOS"
+    ]
+  }
+}

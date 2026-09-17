@@ -3,6 +3,13 @@ options:
   bundleIdPrefix: com.dessimondi
   deploymentTarget:
     macOS: "14.0"
+  # Xcode 26 treats an Icon Composer .icon package as one opaque file, but
+  # XcodeGen's default folder scan would otherwise explode it into its
+  # individual contents (icon.json, the SVG assets, etc). This keeps it
+  # as a single "SchoolSoftWidget.icon in Resources" reference, matching Xcode.
+  fileTypes:
+    icon:
+      file: true
 settings:
   base:
     SWIFT_VERSION: "5.10"
@@ -35,6 +42,10 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.dessimondi.SchoolSoftWidget
         CODE_SIGN_ENTITLEMENTS: App/SchoolSoftWidget.entitlements
         GENERATE_INFOPLIST_FILE: YES
+        # Matches the Icon Composer file's name (App/SchoolSoftWidget.icon,
+        # minus the extension) -- this is the "App Icon Set Name" field
+        # you'd see in Xcode's own build settings UI.
+        ASSETCATALOG_COMPILER_APPICON_NAME: SchoolSoftWidget
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
         # Sparkle auto-update feed + the public half of the EdDSA signing
         # key. The matching private key never lives in this repo -- CI
