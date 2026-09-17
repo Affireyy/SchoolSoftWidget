@@ -9,7 +9,6 @@ struct AccountView: View {
     @State private var isSyncing = false
     @State private var statusMessage = "Connect your SchoolSoft account to sync your schedule."
     @State private var statusType: StatusType = .info
-    @State private var cachedSchedule: Schedule? = ScheduleCache.load()
 
     private enum StatusType {
         case info, success, error
@@ -65,36 +64,12 @@ struct AccountView: View {
                     .font(.footnote)
                     .foregroundStyle(statusColor)
             }
-
-            if let schedule = cachedSchedule {
-                Section("Cached Schedule Status") {
-                    LabeledContent("Lessons today", value: "\(schedule.lessons(for: .now).count) lessons")
-
-                    if let active = schedule.activeLesson() {
-                        LabeledContent("Now in progress", value: "\(active.subject) (\(active.room ?? "No room"))")
-                    } else if let next = schedule.nextLesson() {
-                        LabeledContent("Next up", value: "\(next.subject) at \(next.start.formatted(date: .omitted, time: .shortened))")
-                    } else {
-                        LabeledContent("Status", value: "No active or upcoming lessons today")
-                    }
-
-                    if let lastSync = ScheduleCache.lastSyncDate {
-                        LabeledContent("Last synced", value: lastSync.formatted(date: .abbreviated, time: .shortened))
-                    }
-
-                    LabeledContent("Lunch menu", value: ScheduleCache.loadLunchMenu() != nil ? "Synced" : "Not synced")
-
-                    Button("Clear Cached Schedule & Credentials", role: .destructive, action: clearAllData)
-                        .font(.footnote)
-                }
-            }
         }
         .formStyle(.grouped)
         .frame(width: 480)
         .padding()
         .onAppear {
             loadSavedPassword(for: username)
-            cachedSchedule = ScheduleCache.load()
         }
     }
 
@@ -137,7 +112,6 @@ struct AccountView: View {
             do {
                 let schedule = try await liveService.fetchSchedule(using: creds)
                 ScheduleCache.save(schedule)
-                cachedSchedule = schedule
                 statusType = .success
                 statusMessage = "Successfully synchronized schedule (\(schedule.lessons.count) lessons found)."
 
@@ -161,14 +135,5 @@ struct AccountView: View {
         ScheduleCache.reloadWidgets()
         statusType = .info
         statusMessage = "Widget timeline refresh requested."
-    }
-
-    private func clearAllData() {
-        KeychainHelper.delete(for: username)
-        ScheduleCache.clear()
-        cachedSchedule = nil
-        password = ""
-        statusType = .info
-        statusMessage = "All cached data and credentials have been cleared."
     }
 }

@@ -9,10 +9,35 @@ import WidgetKit
 /// Settings…" item (Cmd+,), which used to open this content's regular
 /// counterpart before the two were split apart.
 struct AdvancedSettingsView: View {
+    @AppStorage("username") private var username = ""
+    @State private var cachedSchedule: Schedule? = ScheduleCache.load()
     @State private var statusMessage: String?
 
     var body: some View {
         Form {
+            if let schedule = cachedSchedule {
+                Section("Cached Schedule Status") {
+                    LabeledContent("Lessons today", value: "\(schedule.lessons(for: .now).count) lessons")
+
+                    if let active = schedule.activeLesson() {
+                        LabeledContent("Now in progress", value: "\(active.subject) (\(active.room ?? "No room"))")
+                    } else if let next = schedule.nextLesson() {
+                        LabeledContent("Next up", value: "\(next.subject) at \(next.start.formatted(date: .omitted, time: .shortened))")
+                    } else {
+                        LabeledContent("Status", value: "No active or upcoming lessons today")
+                    }
+
+                    if let lastSync = ScheduleCache.lastSyncDate {
+                        LabeledContent("Last synced", value: lastSync.formatted(date: .abbreviated, time: .shortened))
+                    }
+
+                    LabeledContent("Lunch menu", value: ScheduleCache.loadLunchMenu() != nil ? "Synced" : "Not synced")
+
+                    Button("Clear Cached Schedule & Credentials", role: .destructive, action: clearAllData)
+                        .font(.footnote)
+                }
+            }
+
             Section("Shared Cache") {
                 LabeledContent("Cache File Location", value: ScheduleCache.sharedCacheDirectoryPath)
                     .font(.caption.monospaced())
@@ -70,12 +95,23 @@ struct AdvancedSettingsView: View {
         .formStyle(.grouped)
         .frame(width: 480)
         .padding()
+        .onAppear {
+            cachedSchedule = ScheduleCache.load()
+        }
     }
 
     private func loadSampleSchedule() {
         let sample = Schedule.sample
         ScheduleCache.save(sample)
         ScheduleCache.save(LunchMenu.sample)
+        cachedSchedule = sample
         statusMessage = "Loaded sample schedule with \(sample.lessons.count) lessons for testing."
+    }
+
+    private func clearAllData() {
+        KeychainHelper.delete(for: username)
+        ScheduleCache.clear()
+        cachedSchedule = nil
+        statusMessage = "All cached data and credentials have been cleared."
     }
 }
