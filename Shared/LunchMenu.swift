@@ -50,31 +50,81 @@ public struct LunchDay: Codable, Identifiable, Sendable, Equatable {
         self.dishes = dishes
     }
 
-    /// SchoolSoft doesn't send a structured "this dish is vegetarian" flag --
-    /// a day's raw text just sometimes has a second line for a vegetarian
-    /// alternative (see the parsing note on `LunchWeekDTO` in
-    /// SchoolSoftScheduleService.swift). This splits `dishes` on a simple
-    /// keyword match instead of relying on a field that doesn't exist.
-    private static let vegetarianKeywords = ["vegetarisk", "vegetarian", "veg:"]
+    /// SchoolSoft doesn't send a structured "this dish is vegetarian" flag.
+    /// The real API text comes back as a flat list of lines where a label
+    /// (e.g. "Vegetarisk" or "Lunch") sits on its own line immediately
+    /// before the dish it describes -- not inline with the dish text, e.g.:
+    ///   ["Vegetarisk", "Majsbiff med kokt potatis...", "Lunch", "Nötfärsbiff..."]
+    /// Some other source (or the bundled sample data) instead writes the
+    /// label inline on the same line as the dish, e.g. "Vegetarian: Bean
+    /// taco buffet". Both shapes are handled below. A line matching neither
+    /// pattern (e.g. a day with only a single, unlabeled dish) is treated as
+    /// common to both modes rather than dropped.
+    private static let standaloneVegetarianLabels: Set<String> = ["vegetarisk", "vegetariskt", "veg"]
+    private static let standaloneNormalLabels: Set<String> = ["lunch", "kött", "dagens lunch"]
+    private static let inlineVegetarianKeywords = ["vegetarisk", "vegetarian", "veg:"]
+    private static let ignoredMarkers: Set<String> = ["idag", "today"]
 
-    private var vegetarianLines: [String] {
-        dishes.filter { dish in Self.vegetarianKeywords.contains { dish.localizedCaseInsensitiveContains($0) } }
+    private struct Categorized {
+        var normal: [String] = []
+        var vegetarian: [String] = []
+        var unlabeled: [String] = []
     }
 
-    private var nonVegetarianLines: [String] {
-        dishes.filter { dish in !Self.vegetarianKeywords.contains { dish.localizedCaseInsensitiveContains($0) } }
+    private var categorizedDishes: Categorized {
+        var result = Categorized()
+        var index = 0
+        while index < dishes.count {
+            let line = dishes[index]
+            let key = line.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+            if Self.ignoredMarkers.contains(key) {
+                index += 1
+                continue
+            }
+
+            if Self.standaloneVegetarianLabels.contains(key), index + 1 < dishes.count {
+                result.vegetarian.append(dishes[index + 1])
+                index += 2
+                continue
+            }
+
+            if Self.standaloneNormalLabels.contains(key), index + 1 < dishes.count {
+                result.normal.append(dishes[index + 1])
+                index += 2
+                continue
+            }
+
+            if Self.inlineVegetarianKeywords.contains(where: { key.contains($0) }) {
+                result.vegetarian.append(line)
+                index += 1
+                continue
+            }
+
+            result.unlabeled.append(line)
+            index += 1
+        }
+        return result
     }
 
-    /// The dishes to show for the given menu mode. When the day doesn't
-    /// distinguish a vegetarian alternative at all (no line matched the
-    /// keywords), both modes fall back to showing everything that's there
-    /// rather than going blank.
+    /// The dishes to show for the given menu mode.
+    ///
+    /// An unlabeled line is treated as the implicit "normal" dish (that's
+    /// how the bundled sample data marks only the vegetarian alternative
+    /// and leaves the regular dish bare) -- *unless* the day had no labels
+    /// at all, meaning there's nothing to distinguish, in which case both
+    /// modes just show everything that's there rather than going blank.
     public func dishes(for mode: LunchMenuMode) -> [String] {
+        let categorized = categorizedDishes
+        guard !(categorized.normal.isEmpty && categorized.vegetarian.isEmpty) else {
+            return dishes
+        }
         switch mode {
         case .vegetarian:
-            return vegetarianLines.isEmpty ? dishes : vegetarianLines
+            return categorized.vegetarian.isEmpty ? categorized.unlabeled : categorized.vegetarian
         case .normal:
-            return nonVegetarianLines.isEmpty ? dishes : nonVegetarianLines
+            let result = categorized.normal + categorized.unlabeled
+            return result.isEmpty ? dishes : result
         }
     }
 }
