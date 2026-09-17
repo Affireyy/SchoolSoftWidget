@@ -9,7 +9,7 @@
           "blend-mode" : "overlay",
           "fill" : "automatic",
           "glass" : true,
-          "hidden" : false,
+          "hidden" : true,
           "image-name" : "Rounded Square.svg",
           "name" : "Rounded Square",
           "opacity" : 0.75,
@@ -28,7 +28,7 @@
         },
         {
           "glass" : true,
-          "hidden" : false,
+          "hidden" : true,
           "image-name" : "SchoolSoft_Elev_1024x1024.jpg",
           "name" : "SchoolSoft_Elev_1024x1024"
         }

@@ -72,8 +72,33 @@ jobs:
       - name: Re-sign app bundle (defensive)
         run: |
           APP="build/Build/Products/Release/${SCHEME}.app"
-          codesign --force --deep --sign - "$APP"
+          EXTENSION="$APP/Contents/PlugIns/SchoolSoftWidgetExtension.appex"
+
+          # IMPORTANT: `codesign --deep` re-signs every nested bundle with
+          # whatever single --entitlements (or none) is passed to that one
+          # invocation. The widget extension needs its OWN entitlements
+          # (app sandbox + the temporary-exception that lets it read the
+          # shared cache file), which are different from the main app's
+          # entitlements (sandbox off, network client). Passing --deep with
+          # no --entitlements here was silently stripping ALL entitlements
+          # from both the app and the widget extension on every release,
+          # which is why the widget never registered with WidgetKit. Sign
+          # inside-out instead: extension first with its own entitlements,
+          # then the outer app with its own entitlements, and never --deep.
+          codesign --force --sign - \
+            --entitlements Widget/SchoolSoftWidgetExtension.entitlements \
+            "$EXTENSION"
+
+          codesign --force --sign - \
+            --entitlements App/SchoolSoftWidget.entitlements \
+            "$APP"
+
           codesign --verify --deep --strict "$APP"
+
+          echo "--- Extension entitlements (should be non-empty) ---"
+          codesign -d --entitlements - "$EXTENSION"
+          echo "--- App entitlements (should be non-empty) ---"
+          codesign -d --entitlements - "$APP"
 
       - name: Package DMG
         id: dmg
