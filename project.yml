@@ -41,21 +41,39 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dessimondi.SchoolSoftWidget
         CODE_SIGN_ENTITLEMENTS: App/SchoolSoftWidget.entitlements
-        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: App/Info.plist
         # Matches the Icon Composer file's name (App/SchoolSoftWidget.icon,
         # minus the extension) -- this is the "App Icon Set Name" field
         # you'd see in Xcode's own build settings UI.
         ASSETCATALOG_COMPILER_APPICON_NAME: SchoolSoftWidget
-        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+    # IMPORTANT: this app's Info.plist needs custom, non-Apple keys (Sparkle's
+    # SUFeedURL etc). Xcode's GENERATE_INFOPLIST_FILE + INFOPLIST_KEY_<X>
+    # build-setting mechanism ONLY synthesizes keys from Apple's own known
+    # Info.plist key catalog -- unrecognized third-party keys like Sparkle's
+    # are silently dropped with no error, which is why auto-update never
+    # actually worked in any shipped release. XcodeGen's `info:` block avoids
+    # that entirely by writing a real, literal Info.plist file at generate
+    # time with exactly these keys, standard ones included.
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: en
+        CFBundleExecutable: $(EXECUTABLE_NAME)
+        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
+        CFBundleInfoDictionaryVersion: "6.0"
+        CFBundleName: $(PRODUCT_NAME)
+        CFBundlePackageType: APPL
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        LSApplicationCategoryType: public.app-category.education
         # Sparkle auto-update feed + the public half of the EdDSA signing
         # key. The matching private key never lives in this repo -- CI
         # reads it from the SPARKLE_PRIVATE_KEY secret at release time.
-        # Replace REPLACE_WITH_YOUR_SPARKLE_PUBLIC_KEY once you've run
-        # `generate_keys` locally (see README).
-        INFOPLIST_KEY_SUFeedURL: https://raw.githubusercontent.com/Affireyy/SchoolSoftWidget/main/appcast.xml
-        INFOPLIST_KEY_SUPublicEDKey: "J1x8Iu8W4VLz4Dt8LBfB5lj230F7kW81zB9UWJz2BiY="
-        INFOPLIST_KEY_SUEnableAutomaticChecks: YES
-        INFOPLIST_KEY_SUScheduledCheckInterval: 86400
+        SUFeedURL: https://raw.githubusercontent.com/Affireyy/SchoolSoftWidget/main/appcast.xml
+        SUPublicEDKey: "J1x8Iu8W4VLz4Dt8LBfB5lj230F7kW81zB9UWJz2BiY="
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 86400
     entitlements:
       path: App/SchoolSoftWidget.entitlements
       properties:
