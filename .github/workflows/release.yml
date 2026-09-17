@@ -104,6 +104,20 @@ jobs:
           tar -xf sparkle-cli.tar.xz -C sparkle-cli
           chmod +x sparkle-cli/bin/sign_update
 
+      - name: DEBUG - inspect sign_update binary
+        run: |
+          echo "--- file ---"
+          file sparkle-cli/bin/sign_update || true
+          echo "--- uname ---"
+          uname -m
+          echo "--- lipo -info ---"
+          lipo -info sparkle-cli/bin/sign_update || true
+          echo "--- running with no args (capturing exit code) ---"
+          set +e
+          ./sparkle-cli/bin/sign_update 2>&1 | head -80
+          echo "exit code: ${PIPESTATUS[0]}"
+          set -e
+
       - name: Sign update for Sparkle
         id: sparkle_sign
         run: |
