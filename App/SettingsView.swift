@@ -36,7 +36,7 @@ struct SettingsView: View {
             }
 
             Section("System Diagnostics") {
-                LabeledContent("App Group Container", value: ScheduleCache.appGroupIdentifier)
+                LabeledContent("Shared Cache", value: ScheduleCache.sharedCacheDirectoryPath)
                     .font(.caption.monospaced())
 
                 LabeledContent("Storage", value: ScheduleCache.load() != nil ? "Schedule cached" : "No cache")
