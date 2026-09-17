@@ -23,6 +23,7 @@ private struct CachedState: Codable {
     var lastSync: Date?
     var lastError: String?
     var largeWidgetMode: String?
+    var lunchMenuMode: String?
 }
 
 public enum ScheduleCache {
@@ -135,6 +136,21 @@ public enum ScheduleCache {
         }
         set {
             writeState { state in state.largeWidgetMode = newValue.rawValue }
+            reloadWidgets()
+        }
+    }
+
+    /// Which alternative (normal or vegetarian) to show when a day's lunch
+    /// lists more than one dish. Defaults to normal.
+    public static var lunchMenuMode: LunchMenuMode {
+        get {
+            if let raw = readState().lunchMenuMode, let mode = LunchMenuMode(rawValue: raw) {
+                return mode
+            }
+            return .normal
+        }
+        set {
+            writeState { state in state.lunchMenuMode = newValue.rawValue }
             reloadWidgets()
         }
     }

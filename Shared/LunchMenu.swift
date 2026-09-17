@@ -49,4 +49,42 @@ public struct LunchDay: Codable, Identifiable, Sendable, Equatable {
         self.date = date
         self.dishes = dishes
     }
+
+    /// SchoolSoft doesn't send a structured "this dish is vegetarian" flag --
+    /// a day's raw text just sometimes has a second line for a vegetarian
+    /// alternative (see the parsing note on `LunchWeekDTO` in
+    /// SchoolSoftScheduleService.swift). This splits `dishes` on a simple
+    /// keyword match instead of relying on a field that doesn't exist.
+    private static let vegetarianKeywords = ["vegetarisk", "vegetarian", "veg:"]
+
+    private var vegetarianLines: [String] {
+        dishes.filter { dish in Self.vegetarianKeywords.contains { dish.localizedCaseInsensitiveContains($0) } }
+    }
+
+    private var nonVegetarianLines: [String] {
+        dishes.filter { dish in !Self.vegetarianKeywords.contains { dish.localizedCaseInsensitiveContains($0) } }
+    }
+
+    /// The dishes to show for the given menu mode. When the day doesn't
+    /// distinguish a vegetarian alternative at all (no line matched the
+    /// keywords), both modes fall back to showing everything that's there
+    /// rather than going blank.
+    public func dishes(for mode: LunchMenuMode) -> [String] {
+        switch mode {
+        case .vegetarian:
+            return vegetarianLines.isEmpty ? dishes : vegetarianLines
+        case .normal:
+            return nonVegetarianLines.isEmpty ? dishes : nonVegetarianLines
+        }
+    }
+}
+
+/// Which alternative to show when a day's menu lists more than one dish.
+/// Stored in the shared cache (see ScheduleCache.lunchMenuMode) so the app
+/// and the widget agree on it.
+public enum LunchMenuMode: String, CaseIterable, Identifiable, Sendable {
+    case normal = "Normal"
+    case vegetarian = "Vegetarian"
+
+    public var id: String { rawValue }
 }

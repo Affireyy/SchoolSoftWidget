@@ -99,9 +99,10 @@ private struct SmallLunchView: View {
             }
             .foregroundStyle(.secondary)
 
-            if let today, !today.dishes.isEmpty {
+            let todayDishes = today?.dishes(for: ScheduleCache.lunchMenuMode) ?? []
+            if !todayDishes.isEmpty {
                 VStack(alignment: .leading, spacing: 5) {
-                    ForEach(today.dishes.prefix(2), id: \.self) { dish in
+                    ForEach(todayDishes.prefix(2), id: \.self) { dish in
                         Text(dish)
                             .font(.body)
                             .lineLimit(2)
@@ -185,7 +186,7 @@ private struct LunchDayRow: View {
                 .foregroundStyle(isToday ? todayForeground : AnyShapeStyle(.secondary))
                 .frame(width: 38, alignment: .leading)
 
-            if let dishes = menu?.dishes, !dishes.isEmpty {
+            if let dishes = menu?.dishes(for: ScheduleCache.lunchMenuMode), !dishes.isEmpty {
                 HStack(alignment: .top, spacing: 14) {
                     ForEach(dishes, id: \.self) { dish in
                         Text(dish)
@@ -274,7 +275,7 @@ private struct MediumLunchDayColumn: View {
             // minimumScaleFactor is kept aggressive so a long dish name
             // shrinks to fit rather than clipping against the widget's edge.
             Group {
-                if let dishes = menu?.dishes, !dishes.isEmpty {
+                if let dishes = menu?.dishes(for: ScheduleCache.lunchMenuMode), !dishes.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(dishes.prefix(1), id: \.self) { dish in
                             Text(dish)
