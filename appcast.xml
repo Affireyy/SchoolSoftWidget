@@ -3,7 +3,7 @@
   Sparkle update feed for SchoolSoftWidget.
 
   Served to the app via raw.githubusercontent.com (see SUFeedURL in
-  project.yml), so it updates the moment this file is committed to main --
+  project.yml), so it updates the moment this file is committed to main;
   no separate hosting needed.
 
   Do not hand-edit the <item> entries below. The release workflow
