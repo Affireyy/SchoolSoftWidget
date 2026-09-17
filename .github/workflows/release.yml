@@ -104,16 +104,10 @@ jobs:
           tar -xf sparkle-cli.tar.xz -C sparkle-cli
           chmod +x sparkle-cli/bin/sign_update
 
-      - name: DEBUG - check SPARKLE_PRIVATE_KEY via GitHub expression
-        run: |
-          echo "Secret non-empty (via expression) = ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}"
-          echo "Secret length (via expression, 0 if empty) = ${{ secrets.SPARKLE_PRIVATE_KEY != '' && '44ish' || '0' }}"
-
       - name: Sign update for Sparkle
         id: sparkle_sign
-        env:
-          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
+          export SPARKLE_PRIVATE_KEY='${{ secrets.SPARKLE_PRIVATE_KEY }}'
           if [ -z "$SPARKLE_PRIVATE_KEY" ]; then
             echo "::error::SPARKLE_PRIVATE_KEY repo secret is not set. See README for the one-time 'generate_keys' setup." >&2
             exit 1
