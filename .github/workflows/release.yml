@@ -104,29 +104,18 @@ jobs:
           tar -xf sparkle-cli.tar.xz -C sparkle-cli
           chmod +x sparkle-cli/bin/sign_update
 
-      - name: DEBUG - inspect sign_update binary
-        run: |
-          echo "--- file ---"
-          file sparkle-cli/bin/sign_update || true
-          echo "--- uname ---"
-          uname -m
-          echo "--- lipo -info ---"
-          lipo -info sparkle-cli/bin/sign_update || true
-          echo "--- running with no args (capturing exit code) ---"
-          set +e
-          ./sparkle-cli/bin/sign_update 2>&1 | head -80
-          echo "exit code: ${PIPESTATUS[0]}"
-          set -e
-
       - name: Sign update for Sparkle
         id: sparkle_sign
         run: |
-          export SPARKLE_PRIVATE_KEY='${{ secrets.SPARKLE_PRIVATE_KEY }}'
+          SPARKLE_PRIVATE_KEY='${{ secrets.SPARKLE_PRIVATE_KEY }}'
           if [ -z "$SPARKLE_PRIVATE_KEY" ]; then
             echo "::error::SPARKLE_PRIVATE_KEY repo secret is not set. See README for the one-time 'generate_keys' setup." >&2
             exit 1
           fi
-          OUTPUT=$(./sparkle-cli/bin/sign_update "${{ steps.dmg.outputs.dmg_path }}")
+          # sign_update does NOT read a SPARKLE_PRIVATE_KEY env var on its own --
+          # it reads the key from the Keychain by default, or from a file/stdin
+          # via --ed-key-file. Pipe the key in via stdin with --ed-key-file -.
+          OUTPUT=$(echo "$SPARKLE_PRIVATE_KEY" | ./sparkle-cli/bin/sign_update --ed-key-file - "${{ steps.dmg.outputs.dmg_path }}")
           echo "$OUTPUT"
           SIG=$(echo "$OUTPUT" | grep -o 'sparkle:edSignature="[^"]*"' | cut -d'"' -f2)
           LEN=$(echo "$OUTPUT" | grep -o 'length="[^"]*"' | cut -d'"' -f2)
