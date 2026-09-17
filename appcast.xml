@@ -20,6 +20,19 @@
     <language>en</language>
     <!-- CI-INSERT-POINT: new <item> elements are inserted directly below this line. -->
     <item>
+    <title>v1.0.3</title>
+    <pubDate>Thu, 17 Sep 2026 12:46:40 +0000</pubDate>
+    <sparkle:version>13</sparkle:version>
+    <sparkle:shortVersionString>1.0.3</sparkle:shortVersionString>
+    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+    <enclosure
+        url="https://github.com/Affireyy/SchoolSoftWidget/releases/download/v1.0.3/SchoolSoftWidget-1.0.3.dmg"
+        length="7790040"
+        type="application/octet-stream"
+        sparkle:edSignature="hQb9GQHG0U/ecb+IYJwv8WnwSHYQ3FqIv5zkK2H7gGCFtYboNnGtN8bHghaYl02WEo/3uKWaok5Labi6JNm/AA==" />
+</item>
+
+    <item>
     <title>v1.0.2</title>
     <pubDate>Thu, 17 Sep 2026 12:28:40 +0000</pubDate>
     <sparkle:version>12</sparkle:version>
