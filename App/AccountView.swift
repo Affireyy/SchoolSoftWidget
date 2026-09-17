@@ -4,9 +4,10 @@ import WidgetKit
 struct AccountView: View {
     @AppStorage("schoolURL") private var schoolURL = ""
     @AppStorage("username") private var username = ""
+    @Environment(\.openWindow) private var openWindow
     @State private var password = ""
     @State private var isSyncing = false
-    @State private var statusMessage = "Connect your SchoolSoft account or load a sample schedule."
+    @State private var statusMessage = "Connect your SchoolSoft account to sync your schedule."
     @State private var statusType: StatusType = .info
     @State private var cachedSchedule: Schedule? = ScheduleCache.load()
 
@@ -52,8 +53,9 @@ struct AccountView: View {
                     .disabled(isSyncing || schoolURL.isEmpty || username.isEmpty || password.isEmpty)
                     .keyboardShortcut(.defaultAction)
 
-                    Button("Load Sample Schedule", action: loadSampleSchedule)
-                        .disabled(isSyncing)
+                    Button("Settings") {
+                        openWindow(id: "settings")
+                    }
 
                     Button("Refresh Widget", action: refreshWidget)
                         .disabled(isSyncing)
@@ -153,16 +155,6 @@ struct AccountView: View {
             }
             isSyncing = false
         }
-    }
-
-    private func loadSampleSchedule() {
-        let sample = Schedule.sample
-        ScheduleCache.save(sample)
-        cachedSchedule = sample
-        ScheduleCache.save(LunchMenu.sample)
-        statusType = .success
-        statusMessage = "Loaded sample schedule with \(sample.lessons.count) lessons for testing."
-        ScheduleCache.reloadWidgets()
     }
 
     private func refreshWidget() {

@@ -34,21 +34,6 @@ struct SettingsView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
-
-            Section("System Diagnostics") {
-                LabeledContent("Shared Cache", value: ScheduleCache.sharedCacheDirectoryPath)
-                    .font(.caption.monospaced())
-
-                LabeledContent("Storage", value: ScheduleCache.load() != nil ? "Schedule cached" : "No cache")
-
-                if let date = ScheduleCache.lastSyncDate {
-                    LabeledContent("Last Updated", value: date.formatted(date: .abbreviated, time: .shortened))
-                }
-
-                Text("WidgetKit updates are scheduled based on lesson transition times and macOS budget policies.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
         }
         .formStyle(.grouped)
         .frame(width: 440)
