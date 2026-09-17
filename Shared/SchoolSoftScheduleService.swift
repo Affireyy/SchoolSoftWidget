@@ -254,9 +254,14 @@ public final class SchoolSoftClient: SchoolSoftScheduleService {
                 throw SchoolSoftServiceError.parsingError("Could not determine the current week.")
             }
 
-            // The response is a single {"monday": "...", "tuesday": "...", ...}
-            // object for one week in every sample seen so far; decode
-            // defensively in case it's ever wrapped in an array instead.
+            // Confirmed against a live response: a school with a
+            // vegetarian option returns *two* of these objects for the
+            // *same* week -- one per `dishCategoryName` ("Lunch" vs
+            // "Vegetarisk") -- each with its own per-weekday dish text and
+            // its own `dates` array giving the real calendar date for each
+            // weekday. A school with just one menu sends a single object
+            // (dishCategoryName absent). Decode defensively in case a
+            // single-menu response isn't wrapped in an array at all.
             let weeks: [LunchWeekDTO]
             if let single = try? JSONDecoder().decode(LunchWeekDTO.self, from: data) {
                 weeks = [single]
@@ -264,13 +269,31 @@ public final class SchoolSoftClient: SchoolSoftScheduleService {
                 weeks = try JSONDecoder().decode([LunchWeekDTO].self, from: data)
             }
 
-            var days: [LunchDay] = []
+            // Merge same-date entries across DTOs into one LunchDay per
+            // date, with both dish lists populated. `dates` (the real
+            // calendar dates this DTO covers) is used when present, since
+            // multiple DTOs for the same week means array position is NOT
+            // a week offset -- a computed offset is only a fallback for a
+            // DTO that omits `dates` entirely.
+            var normalByDate: [Date: [String]] = [:]
+            var vegetarianByDate: [Date: [String]] = [:]
+            var order: [Date] = []
+
             for (index, week) in weeks.enumerated() {
-                // TODO: unconfirmed — if the API ever returns more than one
-                // week, this assumes array position 0 is the current week,
-                // 1 is next week, etc. Adjust if that turns out to be wrong.
-                guard let weekStart = weekCalendar.date(byAdding: .weekOfYear, value: index, to: thisWeekStart) else { continue }
-                days.append(contentsOf: week.days(startingMonday: weekStart, calendar: weekCalendar))
+                let fallbackWeekStart = weekCalendar.date(byAdding: .weekOfYear, value: index, to: thisWeekStart) ?? thisWeekStart
+                for (date, dishes) in week.dayDishes(calendar: weekCalendar, fallbackWeekStart: fallbackWeekStart) {
+                    let day = weekCalendar.startOfDay(for: date)
+                    if !order.contains(day) { order.append(day) }
+                    if week.isVegetarian {
+                        vegetarianByDate[day, default: []].append(contentsOf: dishes)
+                    } else {
+                        normalByDate[day, default: []].append(contentsOf: dishes)
+                    }
+                }
+            }
+
+            let days = order.sorted().map { day in
+                LunchDay(date: day, normalDishes: normalByDate[day] ?? [], vegetarianDishes: vegetarianByDate[day] ?? [])
             }
 
             return LunchMenu(days: days, lastUpdated: .now)
@@ -420,31 +443,61 @@ private struct LessonDTO: Codable {
 /// `/api/lunchmenus/student/{orgId}`, confirmed against a live response.
 ///
 /// Each week is a single object with one string field per weekday (English
-/// keys, Swedish dish text), rather than the {date, dishes} array originally
-/// guessed, e.g. `"monday": "Nötfärsbiff med kokt potatis...\r\n"`. A day's
-/// value can contain multiple dishes separated by "\r\n" (e.g. a
-/// vegetarian alternative on its own line).
+/// keys, Swedish dish text), e.g. `"monday": "Nötfärsbiff med kokt
+/// potatis...\r\n"`. A day's value can contain multiple dishes separated
+/// by "\r\n" (rare -- normally just one). Two other fields matter for
+/// telling menus apart: `dishCategoryName` ("Lunch" / "Vegetarisk" in the
+/// one live response seen so far -- a school with only one menu omits it),
+/// and `dates`, the real ISO calendar dates (Mon...Sun) this particular
+/// object's weekday fields apply to.
 private struct LunchWeekDTO: Codable {
     var monday: String?
     var tuesday: String?
     var wednesday: String?
     var thursday: String?
     var friday: String?
+    var dates: [String]?
+    var dishCategoryName: String?
 
-    func days(startingMonday weekStart: Date, calendar: Calendar) -> [LunchDay] {
-        let ordered: [(offset: Int, text: String?)] = [
+    var isVegetarian: Bool {
+        dishCategoryName?.localizedCaseInsensitiveContains("veg") ?? false
+    }
+
+    private static let isoDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .iso8601)
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    /// One (date, dishes) pair per weekday this object has text for.
+    /// Prefers this DTO's own `dates` (index 0 = Monday) over a computed
+    /// offset from `fallbackWeekStart`, since a school can send multiple
+    /// DTOs for the *same* week (one per `dishCategoryName`) rather than
+    /// one per distinct future week -- `fallbackWeekStart` only applies
+    /// when `dates` is missing entirely.
+    func dayDishes(calendar: Calendar, fallbackWeekStart: Date) -> [(date: Date, dishes: [String])] {
+        let weekdayTexts: [(offset: Int, text: String?)] = [
             (0, monday), (1, tuesday), (2, wednesday), (3, thursday), (4, friday)
         ]
 
-        return ordered.compactMap { offset, text in
+        return weekdayTexts.compactMap { offset, text in
             guard let text else { return nil }
             let dishes = text
                 .components(separatedBy: "\r\n")
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
             guard !dishes.isEmpty else { return nil }
-            guard let date = calendar.date(byAdding: .day, value: offset, to: weekStart) else { return nil }
-            return LunchDay(date: date, dishes: dishes)
+
+            let date: Date?
+            if let isoDates = dates, offset < isoDates.count, let parsed = Self.isoDateFormatter.date(from: isoDates[offset]) {
+                date = parsed
+            } else {
+                date = calendar.date(byAdding: .day, value: offset, to: fallbackWeekStart)
+            }
+            guard let date else { return nil }
+            return (date, dishes)
         }
     }
 }

@@ -22,17 +22,18 @@ public struct LunchMenu: Codable, Sendable, Equatable {
         let today = calendar.startOfDay(for: .now)
         let weekStart = weekCalendar.dateInterval(of: .weekOfYear, for: today)?.start ?? today
 
-        let dishesByDay: [[String]] = [
-            ["Fish gratin with potatoes", "Vegetarian: Chickpea stew"],
-            ["Meatballs with mashed potatoes & lingonberries", "Vegetarian: Bean bolognese"],
-            ["Chicken curry with rice", "Vegetarian: Vegetable curry"],
-            ["Pasta with tomato sauce", "Vegetarian: same"],
-            ["Taco buffet", "Vegetarian: Bean taco buffet"]
+        let dishesByDay: [(normal: String, vegetarian: String)] = [
+            ("Fish gratin with potatoes", "Chickpea stew"),
+            ("Meatballs with mashed potatoes & lingonberries", "Bean bolognese"),
+            ("Chicken curry with rice", "Vegetable curry"),
+            ("Pasta with tomato sauce", "Pasta with tomato sauce"),
+            ("Taco buffet", "Bean taco buffet")
         ]
 
         let days: [LunchDay] = (0..<5).compactMap { offset in
             guard let date = weekCalendar.date(byAdding: .day, value: offset, to: weekStart) else { return nil }
-            return LunchDay(date: date, dishes: dishesByDay[offset])
+            let pair = dishesByDay[offset]
+            return LunchDay(date: date, normalDishes: [pair.normal], vegetarianDishes: [pair.vegetarian])
         }
 
         return LunchMenu(days: days, lastUpdated: .now)
@@ -41,90 +42,36 @@ public struct LunchMenu: Codable, Sendable, Equatable {
 
 public struct LunchDay: Codable, Identifiable, Sendable, Equatable {
     public var date: Date
-    public var dishes: [String]
+    /// The non-vegetarian ("Lunch") dishes for this day, straight from
+    /// SchoolSoft's `dishCategoryName: "Lunch"` menu.
+    public var normalDishes: [String]
+    /// The vegetarian dishes for this day, from SchoolSoft's
+    /// `dishCategoryName: "Vegetarisk"` menu.
+    ///
+    /// SchoolSoft sends these as two entirely separate weekly menu objects
+    /// for the *same* week (one per `dishCategoryName`), each with its own
+    /// per-weekday dish text -- not as a single flagged list. The service
+    /// layer (`SchoolSoftScheduleService.retrieveLunch`) merges same-date
+    /// entries from both into one `LunchDay` before this is ever stored.
+    public var vegetarianDishes: [String]
 
     public var id: Date { date }
 
-    public init(date: Date, dishes: [String]) {
+    public init(date: Date, normalDishes: [String] = [], vegetarianDishes: [String] = []) {
         self.date = date
-        self.dishes = dishes
+        self.normalDishes = normalDishes
+        self.vegetarianDishes = vegetarianDishes
     }
 
-    /// SchoolSoft doesn't send a structured "this dish is vegetarian" flag.
-    /// The real API text comes back as a flat list of lines where a label
-    /// (e.g. "Vegetarisk" or "Lunch") sits on its own line immediately
-    /// before the dish it describes -- not inline with the dish text, e.g.:
-    ///   ["Vegetarisk", "Majsbiff med kokt potatis...", "Lunch", "Nötfärsbiff..."]
-    /// Some other source (or the bundled sample data) instead writes the
-    /// label inline on the same line as the dish, e.g. "Vegetarian: Bean
-    /// taco buffet". Both shapes are handled below. A line matching neither
-    /// pattern (e.g. a day with only a single, unlabeled dish) is treated as
-    /// common to both modes rather than dropped.
-    private static let standaloneVegetarianLabels: Set<String> = ["vegetarisk", "vegetariskt", "veg"]
-    private static let standaloneNormalLabels: Set<String> = ["lunch", "kött", "dagens lunch"]
-    private static let inlineVegetarianKeywords = ["vegetarisk", "vegetarian", "veg:"]
-    private static let ignoredMarkers: Set<String> = ["idag", "today"]
-
-    private struct Categorized {
-        var normal: [String] = []
-        var vegetarian: [String] = []
-        var unlabeled: [String] = []
-    }
-
-    private var categorizedDishes: Categorized {
-        var result = Categorized()
-        var index = 0
-        while index < dishes.count {
-            let line = dishes[index]
-            let key = line.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-
-            if Self.ignoredMarkers.contains(key) {
-                index += 1
-                continue
-            }
-
-            if Self.standaloneVegetarianLabels.contains(key), index + 1 < dishes.count {
-                result.vegetarian.append(dishes[index + 1])
-                index += 2
-                continue
-            }
-
-            if Self.standaloneNormalLabels.contains(key), index + 1 < dishes.count {
-                result.normal.append(dishes[index + 1])
-                index += 2
-                continue
-            }
-
-            if Self.inlineVegetarianKeywords.contains(where: { key.contains($0) }) {
-                result.vegetarian.append(line)
-                index += 1
-                continue
-            }
-
-            result.unlabeled.append(line)
-            index += 1
-        }
-        return result
-    }
-
-    /// The dishes to show for the given menu mode.
-    ///
-    /// An unlabeled line is treated as the implicit "normal" dish (that's
-    /// how the bundled sample data marks only the vegetarian alternative
-    /// and leaves the regular dish bare) -- *unless* the day had no labels
-    /// at all, meaning there's nothing to distinguish, in which case both
-    /// modes just show everything that's there rather than going blank.
+    /// The dishes to show for the given menu mode. When a day only has one
+    /// category synced (or the school doesn't distinguish at all), the
+    /// other mode falls back to showing it too rather than going blank.
     public func dishes(for mode: LunchMenuMode) -> [String] {
-        let categorized = categorizedDishes
-        guard !(categorized.normal.isEmpty && categorized.vegetarian.isEmpty) else {
-            return dishes
-        }
         switch mode {
-        case .vegetarian:
-            return categorized.vegetarian.isEmpty ? categorized.unlabeled : categorized.vegetarian
         case .normal:
-            let result = categorized.normal + categorized.unlabeled
-            return result.isEmpty ? dishes : result
+            return normalDishes.isEmpty ? vegetarianDishes : normalDishes
+        case .vegetarian:
+            return vegetarianDishes.isEmpty ? normalDishes : vegetarianDishes
         }
     }
 }
