@@ -19,5 +19,18 @@
     <description>Updates for SchoolSoftWidget.</description>
     <language>en</language>
     <!-- CI-INSERT-POINT: new <item> elements are inserted directly below this line. -->
+    <item>
+    <title>v1.0.0</title>
+    <pubDate>Thu, 17 Sep 2026 11:09:20 +0000</pubDate>
+    <sparkle:version>10</sparkle:version>
+    <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
+    <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+    <enclosure
+        url="https://github.com/Affireyy/SchoolSoftWidget/releases/download/v1.0.0/SchoolSoftWidget-1.0.0.dmg"
+        length="1604970"
+        type="application/octet-stream"
+        sparkle:edSignature="fyWmRIZRSeGtTHQMk5kW8jRSOrqr8t1OkdUx+808pwMs/6vL4k1sSKrGplRHPFTglwcGePLjUQcm/3PlvBCPDw==" />
+</item>
+
   </channel>
 </rss>
