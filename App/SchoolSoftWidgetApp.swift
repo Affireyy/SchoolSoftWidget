@@ -1,6 +1,9 @@
+#if os(macOS)
 import Sparkle
+#endif
 import SwiftUI
 
+#if os(macOS)
 @main
 struct SchoolSoftWidgetApp: App {
     @AppStorage("appearance") private var appearance = AppearancePreference.system.rawValue
@@ -58,6 +61,19 @@ struct SchoolSoftWidgetApp: App {
     }
 }
 
+#else
+@main
+struct SchoolSoftWidgetApp: App {
+    @AppStorage("appearance") private var appearance = AppearancePreference.system.rawValue
+
+    var body: some Scene {
+        WindowGroup {
+            RootTabView()
+                .preferredColorScheme(AppearancePreference(rawValue: appearance)?.colorScheme)
+        }
+    }
+}
+#endif
 
 enum AppearancePreference: String, CaseIterable, Identifiable {
     case system = "System"

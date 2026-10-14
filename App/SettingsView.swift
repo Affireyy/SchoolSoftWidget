@@ -15,11 +15,12 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
 
-                Text("Controls the appearance of the main configuration window. The widget automatically follows your macOS system appearance.")
+                Text("Controls the appearance of the app. Widgets automatically follow your system appearance.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
 
+            #if os(macOS)
             Section("Large Widget") {
                 Picker("Large Widget Shows", selection: $largeWidgetMode) {
                     ForEach(LargeWidgetMode.allCases) { mode in
@@ -51,9 +52,14 @@ struct SettingsView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
+            #endif
         }
         .formStyle(.grouped)
+        #if os(macOS)
         .frame(width: 440)
         .padding()
+        #else
+        .navigationTitle("Settings")
+        #endif
     }
 }

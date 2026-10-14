@@ -2,9 +2,9 @@ name: Release
 
 # Fires whenever a version tag like v1.2.0 is pushed. Build a Release
 # .app, ad-hoc sign it (no paid Apple Developer ID is configured for this
-# project -- see README), package it into a drag-and-drop DMG, publish a
-# GitHub Release with the DMG attached, and append a signed entry to
-# appcast.xml so every existing install picks up the update via Sparkle.
+# project -- see README), package it into a drag-and-drop DMG, build an
+# unsigned iOS IPA for Sideloadly, publish both assets on a GitHub Release,
+# and append a signed entry to appcast.xml for Sparkle.
 on:
   push:
     tags:
@@ -121,6 +121,46 @@ jobs:
           echo "dmg_name=$DMG_NAME" >> "$GITHUB_OUTPUT"
           echo "dmg_path=$PWD/$DMG_NAME" >> "$GITHUB_OUTPUT"
 
+      - name: Build unsigned iOS archive
+        run: |
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme SchoolSoftWidget-iOS \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build/ios-derived \
+            -archivePath build/SchoolSoftWidget-iOS.xcarchive \
+            MARKETING_VERSION="${{ steps.version.outputs.version }}" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            archive
+
+      - name: Package unsigned IPA
+        id: ipa
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          APP="build/SchoolSoftWidget-iOS.xcarchive/Products/Applications/SchoolSoftWidget.app"
+          IPA_NAME="SchoolSoftWidget-iOS-${VERSION}-unsigned.ipa"
+          STAGING="ipa-staging"
+
+          test -d "$APP/PlugIns/SchoolSoftWidgetExtension.appex" || {
+            echo "::error::The archived iOS app does not contain the WidgetKit extension." >&2
+            exit 1
+          }
+
+          rm -rf "$STAGING" "$IPA_NAME"
+          mkdir -p "$STAGING/Payload"
+          cp -R "$APP" "$STAGING/Payload/"
+          (cd "$STAGING" && zip -qr "../$IPA_NAME" Payload)
+          rm -rf "$STAGING"
+
+          echo "ipa_name=$IPA_NAME" >> "$GITHUB_OUTPUT"
+          echo "ipa_path=$PWD/$IPA_NAME" >> "$GITHUB_OUTPUT"
+
       - name: Download Sparkle CLI tools
         run: |
           curl -L -o sparkle-cli.tar.xz \
@@ -157,6 +197,7 @@ jobs:
         run: |
           gh release create "${{ steps.version.outputs.tag }}" \
             "${{ steps.dmg.outputs.dmg_path }}" \
+            "${{ steps.ipa.outputs.ipa_path }}" \
             --title "${{ steps.version.outputs.tag }}" \
             --generate-notes
 

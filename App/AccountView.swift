@@ -4,7 +4,9 @@ import WidgetKit
 struct AccountView: View {
     @AppStorage("schoolURL") private var schoolURL = ""
     @AppStorage("username") private var username = ""
+    #if os(macOS)
     @Environment(\.openWindow) private var openWindow
+    #endif
     @State private var password = ""
     @State private var isSyncing = false
     @State private var statusMessage = "Connect your SchoolSoft account to sync your schedule."
@@ -18,15 +20,43 @@ struct AccountView: View {
     private let mockService = MockSchoolSoftService()
 
     var body: some View {
+        #if os(macOS)
+        form
+        #else
+        NavigationStack {
+            form
+                .navigationTitle("SchoolSoft")
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            NavigationLink("Settings") { SettingsView() }
+                            NavigationLink("Advanced Settings") { AdvancedSettingsView() }
+                        } label: {
+                            Label("More", systemImage: "gearshape")
+                        }
+                    }
+                }
+        }
+        #endif
+    }
+
+    private var form: some View {
         Form {
             Section("SchoolSoft Account") {
                 TextField("School URL", text: $schoolURL, prompt: Text("https://sms13.schoolsoft.se/yourschool"))
                     .textContentType(.URL)
                     .autocorrectionDisabled()
+                    #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.URL)
+                    #endif
 
                 TextField("Username", text: $username)
                     .textContentType(.username)
                     .autocorrectionDisabled()
+                    #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                    #endif
                     .onChange(of: username) { _, newUsername in
                         loadSavedPassword(for: newUsername)
                     }
@@ -34,7 +64,7 @@ struct AccountView: View {
                 SecureField("Password", text: $password)
                     .textContentType(.password)
 
-                Text("Your password is encrypted and stored exclusively in macOS Keychain.")
+                Text("Your password is encrypted and stored exclusively in the system Keychain.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -52,12 +82,16 @@ struct AccountView: View {
                     .disabled(isSyncing || schoolURL.isEmpty || username.isEmpty || password.isEmpty)
                     .keyboardShortcut(.defaultAction)
 
+                    #if os(macOS)
                     Button("Settings") {
                         openWindow(id: "settings")
                     }
+                    #endif
 
+                    #if os(macOS)
                     Button("Refresh Widget", action: refreshWidget)
                         .disabled(isSyncing)
+                    #endif
                 }
 
                 Label(statusMessage, systemImage: statusIcon)
@@ -66,8 +100,10 @@ struct AccountView: View {
             }
         }
         .formStyle(.grouped)
+        #if os(macOS)
         .frame(width: 480)
         .padding()
+        #endif
         .onAppear {
             loadSavedPassword(for: username)
         }

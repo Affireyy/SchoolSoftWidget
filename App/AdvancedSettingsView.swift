@@ -1,4 +1,6 @@
+#if os(macOS)
 import AppKit
+#endif
 import SwiftUI
 import WidgetKit
 
@@ -55,14 +57,16 @@ struct AdvancedSettingsView: View {
                         .foregroundStyle(.red)
                 }
 
+                #if os(macOS)
                 Button("Reveal Cache Folder in Finder") {
                     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: ScheduleCache.sharedCacheDirectoryPath)
                 }
                 .font(.footnote)
+                #endif
             }
 
             Section("Widget") {
-                Text("WidgetKit updates are scheduled based on lesson transition times and macOS budget policies, so a manual refresh is rarely needed.")
+                Text("WidgetKit updates are scheduled based on lesson transition times and system budget policies, so a manual refresh is rarely needed.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
@@ -93,8 +97,12 @@ struct AdvancedSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        #if os(macOS)
         .frame(width: 480)
         .padding()
+        #else
+        .navigationTitle("Advanced Settings")
+        #endif
         .onAppear {
             cachedSchedule = ScheduleCache.load()
         }

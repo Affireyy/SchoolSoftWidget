@@ -4,10 +4,12 @@ import SwiftUI
 public struct ScheduleEntry: TimelineEntry {
     public let date: Date
     public let schedule: Schedule?
+    public let message: String?
 
-    public init(date: Date, schedule: Schedule?) {
+    public init(date: Date, schedule: Schedule?, message: String? = nil) {
         self.date = date
         self.schedule = schedule
+        self.message = message
     }
 }
 
@@ -26,26 +28,66 @@ public struct ScheduleProvider: TimelineProvider {
     public func getTimeline(in context: Context, completion: @escaping (Timeline<ScheduleEntry>) -> Void) {
         let currentDate = Date()
         let schedule = ScheduleCache.load() ?? .sample
-        let todayLessons = schedule.lessons(for: currentDate)
-
-        var entries: [ScheduleEntry] = []
-        // Base entry for current time
-        entries.append(ScheduleEntry(date: currentDate, schedule: schedule))
-
-        // Create entries at the start and end of upcoming lessons so the widget updates in real-time
-        for lesson in todayLessons {
-            if lesson.start > currentDate {
-                entries.append(ScheduleEntry(date: lesson.start, schedule: schedule))
-            }
-            if lesson.end > currentDate {
-                entries.append(ScheduleEntry(date: lesson.end, schedule: schedule))
-            }
-        }
-
-        // Default refresh after 30 minutes or at end of last lesson
-        let nextRefresh = Calendar.current.date(byAdding: .minute, value: 30, to: currentDate) ?? currentDate.addingTimeInterval(1800)
-        completion(Timeline(entries: entries, policy: .after(nextRefresh)))
+        completion(makeScheduleTimeline(schedule: schedule, from: currentDate))
     }
+}
+
+#if os(iOS)
+public struct ScheduleIntentProvider: AppIntentTimelineProvider {
+    public init() {}
+
+    public func placeholder(in context: Context) -> ScheduleEntry {
+        ScheduleEntry(date: .now, schedule: .sample)
+    }
+
+    public func snapshot(for configuration: ScheduleWidgetIntent, in context: Context) async -> ScheduleEntry {
+        if context.isPreview { return ScheduleEntry(date: .now, schedule: .sample) }
+        let message = await configuration.refreshCache()
+        return ScheduleEntry(date: .now, schedule: message == nil ? ScheduleCache.load() : nil, message: message)
+    }
+
+    public func timeline(for configuration: ScheduleWidgetIntent, in context: Context) async -> Timeline<ScheduleEntry> {
+        let message = await configuration.refreshCache()
+        let schedule = message == nil ? ScheduleCache.load() : nil
+        let now = Date()
+        let refresh = Calendar.current.date(byAdding: .minute, value: 30, to: now)
+            ?? now.addingTimeInterval(1800)
+        return makeScheduleTimeline(schedule: schedule, from: now, message: message, reloadAfter: refresh)
+    }
+}
+#endif
+
+private func makeScheduleTimeline(
+    schedule: Schedule?,
+    from currentDate: Date,
+    message: String? = nil,
+    reloadAfter: Date? = nil
+) -> Timeline<ScheduleEntry> {
+    var transitionDates = Set<Date>()
+    for lesson in schedule?.lessons ?? [] {
+        if lesson.start > currentDate { transitionDates.insert(lesson.start) }
+        if lesson.end > currentDate { transitionDates.insert(lesson.end) }
+    }
+
+    // Refresh the displayed weekday even when the day's last lesson ends
+    // before midnight, and keep transitions for the whole cached week in order.
+    let calendar = Calendar.current
+    let today = calendar.startOfDay(for: currentDate)
+    for offset in 1...7 {
+        if let midnight = calendar.date(byAdding: .day, value: offset, to: today),
+           midnight > currentDate {
+            transitionDates.insert(midnight)
+        }
+    }
+
+    let dates = [currentDate] + transitionDates.sorted()
+    let entries = dates.map {
+        ScheduleEntry(date: $0, schedule: schedule, message: message)
+    }
+    if let reloadAfter {
+        return Timeline(entries: entries, policy: .after(reloadAfter))
+    }
+    return Timeline(entries: entries, policy: .atEnd)
 }
 
 public struct ScheduleWidget: Widget {
@@ -54,6 +96,15 @@ public struct ScheduleWidget: Widget {
     public init() {}
 
     public var body: some WidgetConfiguration {
+        #if os(iOS)
+        AppIntentConfiguration(kind: kind, intent: ScheduleWidgetIntent.self, provider: ScheduleIntentProvider()) { entry in
+            ScheduleWidgetEntryView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("School Schedule")
+        .description("Long-press the widget and tap Edit Widget to enter your SchoolSoft login. The large widget can show the week or just today.")
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        #else
         StaticConfiguration(kind: kind, provider: ScheduleProvider()) { entry in
             ScheduleWidgetEntryView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
@@ -61,6 +112,7 @@ public struct ScheduleWidget: Widget {
         .configurationDisplayName("School Schedule")
         .description("Keep track of current and upcoming lessons. Switch the large widget between a week view and today-only in Settings.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        #endif
     }
 }
 
@@ -73,6 +125,15 @@ private struct ScheduleWidgetEntryView: View {
     }
 
     var body: some View {
+        if let message = entry.message {
+            WidgetMessageView(systemImage: "calendar.badge.exclamationmark", title: "School Schedule", message: message)
+        } else {
+            content
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         switch family {
         case .systemLarge:
             switch ScheduleCache.largeWidgetMode {

@@ -1,6 +1,6 @@
-# SchoolSoft Widget (macOS)
+# SchoolSoft Widget (macOS & iOS)
 
-A native macOS-only schedule widget and companion settings application built with **Swift**, **SwiftUI**, and **WidgetKit**.
+A native macOS and iOS/iPadOS schedule widget and companion settings application built with **Swift**, **SwiftUI**, and **WidgetKit**.
 
 The main macOS app is deliberately minimal and conventional: it provides SchoolSoft account authentication, secure Keychain storage, sync controls, and appearance customization. The schedule itself is presented natively in the macOS Notification Center and Desktop via WidgetKit.
 
@@ -9,9 +9,10 @@ The main macOS app is deliberately minimal and conventional: it provides SchoolS
 ## Architecture & Features
 
 - **Native macOS & WidgetKit**: Built with pure SwiftUI and WidgetKit; supports `.systemSmall`, `.systemMedium`, and `.systemLarge` widget sizes.
-- **Dynamic Timeline Transitions**: The widget calculates timeline entries at the exact start and end boundaries of every lesson today, ensuring immediate status transitions without battery-draining polling.
-- **Shared App Group Container**: Schedule data and synchronization status are shared between the main app and the widget extension via `ScheduleCache` backed by an App Group.
-- **Encrypted Keychain Storage**: Passwords and authentication tokens are encrypted and managed strictly in macOS Keychain via `KeychainHelper`, never in plaintext or `UserDefaults`.
+- **Dynamic Timeline Transitions**: macOS schedule widgets receive sorted entries at lesson start/end times across the cached week and at day boundaries. The timeline reloads at its end rather than polling every 30 minutes; syncing from the app reloads widget timelines.
+- **Platform-specific data sharing**: macOS uses a shared cache file readable by the widget extension. On iOS, where free developer accounts cannot use App Groups, each widget fetches its own data from the credentials in its widget configuration.
+- **Keychain Storage**: The companion app stores its password in the system Keychain. iOS widgets use their own configured credentials and do not read the app's Keychain.
+- **Schedule details**: The iOS app highlights the current lesson and displays the break duration between lessons.
 - **Flexible SchoolSoft Service**:
   - `SchoolSoftClient`: Direct integration with SchoolSoft mobile REST API endpoints (`/rest/app/login` and `/rest/app/lessons`).
   - `MockSchoolSoftService`: Offline testing service for sample schedules.
@@ -51,7 +52,8 @@ SchoolSoftWidgetStarter/
 ## Practical Toolchain & Prerequisites
 
 ### 1. Requirements
-- macOS 14.0 (Sonoma) or newer.
+- macOS 14.0 (Sonoma) or newer, or iOS/iPadOS 17.0 or newer.
+- iOS: build the `SchoolSoftWidget-iOS` scheme. Free developer accounts are supported; each widget is configured with its own SchoolSoft login because iOS widgets cannot share the app's cache without an App Group. Sparkle auto-update and the Finder reveal button are macOS-only.
 - Xcode 15+ installed at `/Applications/Xcode.app`.
 - XcodeGen:
   ```sh
@@ -111,6 +113,13 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
    (see below), so Gatekeeper will call it "unidentified developer." Right-click
    the app in Applications and choose **Open**, then confirm once. Every
    launch after that works normally, including double-click.
+
+### iOS (Sideloading)
+
+Releases also include `SchoolSoftWidget-iOS-*-unsigned.ipa`. It is unsigned
+for sideloading: install it with Sideloadly or another signing tool using your
+own Apple ID. The widget extension is included in the IPA. Free-account
+signatures expire after seven days and must be renewed.
 
 ## Auto-updates
 

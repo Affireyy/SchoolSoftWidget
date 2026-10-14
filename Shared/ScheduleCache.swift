@@ -13,10 +13,9 @@ public enum LargeWidgetMode: String, CaseIterable, Identifiable, Sendable {
     public var id: String { rawValue }
 }
 
-/// Everything the widget needs to read, as one Codable snapshot. The app
-/// (unsandboxed) writes this as a single JSON file; the widget (sandboxed)
-/// reads it via a home-relative-path sandbox exception -- see the widget
-/// target's entitlements and the note on `cacheDirectoryRelativePath` below.
+/// Everything a process needs to read, as one Codable snapshot. On macOS the
+/// app and widget share a file; on iOS each process keeps its own cache and
+/// the widget fetches directly using its configuration.
 private struct CachedState: Codable {
     var scheduleData: Data?
     var lunchMenuData: Data?
@@ -27,18 +26,10 @@ private struct CachedState: Codable {
 }
 
 public enum ScheduleCache {
-    // App Groups would normally be the standard way to share data like this
-    // between an app and its widget extension, but that capability requires
-    // a real, Apple-issued Team ID -- i.e. a paid Apple Developer Program
-    // membership -- to actually function for anyone other than the machine
-    // it was created on (see README). Since this project ships ad-hoc
-    // signed with no team so it can be built and distributed for free, it
-    // shares data with a plain file instead: the (unsandboxed) app writes
-    // it to a fixed, well-known path in the user's real home directory, and
-    // the widget is granted read-only access to exactly that one path via a
-    // `com.apple.security.temporary-exception.files.home-relative-path.read-only`
-    // entitlement. That's a sandbox rule macOS enforces locally, so unlike
-    // App Groups it works regardless of code-signing team.
+    // macOS shares the cache with its widget via a fixed home-directory
+    // file and a read-only sandbox exception. iOS deliberately does not use
+    // an App Group: free developer accounts cannot sign that entitlement,
+    // and the iOS widget obtains data directly from its configured login.
     private static let cacheDirectoryRelativePath = "Library/Application Support/SchoolSoftWidget"
     private static let cacheFileName = "cache.json"
 
@@ -48,15 +39,24 @@ public enum ScheduleCache {
     /// goes through libc instead, which always reports the true home
     /// regardless of sandboxing -- matching what the entitlement above is
     /// actually granted relative to.
+    #if os(macOS)
     private static var realHomeDirectory: URL {
         if let pwd = getpwuid(getuid()), let dir = pwd.pointee.pw_dir {
             return URL(fileURLWithPath: String(cString: dir), isDirectory: true)
         }
         return URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
     }
+    #endif
 
     private static var cacheDirectory: URL {
-        realHomeDirectory.appendingPathComponent(cacheDirectoryRelativePath, isDirectory: true)
+        #if os(iOS)
+        // Each iOS target gets its own sandbox Application Support directory.
+        // The widget's direct fetch does not depend on the app's cache.
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("SchoolSoftWidget", isDirectory: true)
+        #else
+        return realHomeDirectory.appendingPathComponent(cacheDirectoryRelativePath, isDirectory: true)
+        #endif
     }
 
     private static var cacheFileURL: URL {
@@ -152,6 +152,25 @@ public enum ScheduleCache {
         set {
             writeState { state in state.lunchMenuMode = newValue.rawValue }
             reloadWidgets()
+        }
+    }
+
+    /// Used by the iOS widget extension, which fetches its own data (no App
+    /// Group on free signing). Unlike `save`, this never asks WidgetKit to
+    /// reload, since it runs inside a timeline request.
+    public static func storeFromWidget(schedule: Schedule?, lunchMenu: LunchMenu?,
+                                       largeMode: LargeWidgetMode? = nil, lunchMode: LunchMenuMode? = nil) {
+        var schedule = schedule
+        schedule?.lastUpdated = .now
+        var lunchMenu = lunchMenu
+        lunchMenu?.lastUpdated = .now
+        let scheduleData = schedule.flatMap { try? JSONEncoder().encode($0) }
+        let lunchData = lunchMenu.flatMap { try? JSONEncoder().encode($0) }
+        writeState { state in
+            if let scheduleData { state.scheduleData = scheduleData; state.lastSync = .now; state.lastError = nil }
+            if let lunchData { state.lunchMenuData = lunchData }
+            if let largeMode { state.largeWidgetMode = largeMode.rawValue }
+            if let lunchMode { state.lunchMenuMode = lunchMode.rawValue }
         }
     }
 

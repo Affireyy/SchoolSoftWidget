@@ -4,10 +4,12 @@ import SwiftUI
 public struct LunchEntry: TimelineEntry {
     public let date: Date
     public let lunchMenu: LunchMenu?
+    public let message: String?
 
-    public init(date: Date, lunchMenu: LunchMenu?) {
+    public init(date: Date, lunchMenu: LunchMenu?, message: String? = nil) {
         self.date = date
         self.lunchMenu = lunchMenu
+        self.message = message
     }
 }
 
@@ -40,12 +42,46 @@ public struct LunchProvider: TimelineProvider {
     }
 }
 
+#if os(iOS)
+public struct LunchIntentProvider: AppIntentTimelineProvider {
+    public init() {}
+
+    public func placeholder(in context: Context) -> LunchEntry {
+        LunchEntry(date: .now, lunchMenu: .sample)
+    }
+
+    public func snapshot(for configuration: LunchWidgetIntent, in context: Context) async -> LunchEntry {
+        if context.isPreview { return LunchEntry(date: .now, lunchMenu: .sample) }
+        let message = await configuration.refreshCache()
+        return LunchEntry(date: .now, lunchMenu: message == nil ? ScheduleCache.loadLunchMenu() : nil, message: message)
+    }
+
+    public func timeline(for configuration: LunchWidgetIntent, in context: Context) async -> Timeline<LunchEntry> {
+        let message = await configuration.refreshCache()
+        let now = Date()
+        let entry = LunchEntry(date: now, lunchMenu: message == nil ? ScheduleCache.loadLunchMenu() : nil, message: message)
+        let next = Calendar.current.nextDate(after: now, matching: DateComponents(hour: 0, minute: 5), matchingPolicy: .nextTime)
+            ?? now.addingTimeInterval(6 * 3600)
+        return Timeline(entries: [entry], policy: .after(next))
+    }
+}
+#endif
+
 public struct LunchWidget: Widget {
     public let kind = "LunchWidget"
 
     public init() {}
 
     public var body: some WidgetConfiguration {
+        #if os(iOS)
+        AppIntentConfiguration(kind: kind, intent: LunchWidgetIntent.self, provider: LunchIntentProvider()) { entry in
+            LunchWidgetEntryView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Lunch Menu")
+        .description("Long-press the widget and tap Edit Widget to enter your SchoolSoft login. The large widget shows the whole week.")
+        .supportedFamilies([.systemSmall, .systemLarge])
+        #else
         StaticConfiguration(kind: kind, provider: LunchProvider()) { entry in
             LunchWidgetEntryView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
@@ -53,6 +89,7 @@ public struct LunchWidget: Widget {
         .configurationDisplayName("Lunch Menu")
         .description("See what's for school lunch today — the large widget shows the whole week (Mon–Fri).")
         .supportedFamilies([.systemSmall, .systemLarge])
+        #endif
     }
 }
 
@@ -65,7 +102,9 @@ private struct LunchWidgetEntryView: View {
     }
 
     var body: some View {
-        if entry.lunchMenu?.days.isEmpty ?? true {
+        if let message = entry.message {
+            WidgetMessageView(systemImage: "fork.knife", title: "Lunch Menu", message: message)
+        } else if entry.lunchMenu?.days.isEmpty ?? true {
             ContentUnavailableView(
                 "No Lunch Menu",
                 systemImage: "fork.knife",

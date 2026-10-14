@@ -19,6 +19,7 @@ xcuserdata/
 # Build products / packaging output used by the release workflow
 build/
 *.dmg
+*.ipa
 
 # Local secrets -- never commit a Sparkle private key
 *.pem
