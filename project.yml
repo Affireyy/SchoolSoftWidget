@@ -15,9 +15,9 @@ settings:
   base:
     SWIFT_VERSION: "5.10"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
-    MARKETING_VERSION: "1.0.10"
+    MARKETING_VERSION: "1.0.11"
     CURRENT_PROJECT_VERSION: "1"
-    INFOPLIST_KEY_CFBundleShortVersionString: "1.0.10"
+    INFOPLIST_KEY_CFBundleShortVersionString: "1.0.11"
     INFOPLIST_KEY_CFBundleVersion: "1"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: UDWA7LNKRM
@@ -131,6 +131,7 @@ targets:
       - path: Shared
     dependencies:
       - target: SchoolSoftWidgetExtension-iOS
+        codeSign: true
     settings:
       base:
         PRODUCT_NAME: SchoolSoftWidget

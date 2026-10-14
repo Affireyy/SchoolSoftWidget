@@ -144,13 +144,19 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           APP="build/SchoolSoftWidget-iOS.xcarchive/Products/Applications/SchoolSoftWidget.app"
+          EXTENSION="$APP/PlugIns/SchoolSoftWidgetExtension.appex"
           IPA_NAME="SchoolSoftWidget-iOS-${VERSION}-unsigned.ipa"
           STAGING="ipa-staging"
 
-          test -d "$APP/PlugIns/SchoolSoftWidgetExtension.appex" || {
+          test -x "$EXTENSION/SchoolSoftWidgetExtension" || {
             echo "::error::The archived iOS app does not contain the WidgetKit extension." >&2
             exit 1
           }
+          EXTENSION_POINT=$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$EXTENSION/Info.plist")
+          if [ "$EXTENSION_POINT" != "com.apple.widgetkit-extension" ]; then
+            echo "::error::The embedded iOS extension is not registered as a WidgetKit extension." >&2
+            exit 1
+          fi
 
           rm -rf "$STAGING" "$IPA_NAME"
           mkdir -p "$STAGING/Payload"

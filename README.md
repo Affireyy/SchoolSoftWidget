@@ -119,7 +119,9 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
 Releases also include `SchoolSoftWidget-iOS-*-unsigned.ipa`. It is unsigned
 for sideloading: install it with Sideloadly or another signing tool using your
 own Apple ID. The widget extension is included in the IPA. Free-account
-signatures expire after seven days and must be renewed.
+signatures expire after seven days and must be renewed. When updating, remove
+the old app and its widgets before installing the new IPA; in Sideloadly, make
+sure app extensions are not disabled or removed.
 
 ## Auto-updates
 
